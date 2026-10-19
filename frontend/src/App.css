@@ -1,0 +1,39 @@
+root {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+main {
+  width: 100%;
+}
+
+section {
+  margin-top: 2rem;
+  padding: 1.5rem;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+}
+
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1rem;
+}
+
+th,
+td {
+  padding: 0.9rem;
+  border-bottom: 1px solid #ddd;
+  text-align: left;
+}
+
+th {
+  background-color: #f3f4f6;
+  color: #111827;
+}
+
+tr:hover {
+  background-color: #f9fafb;
+}

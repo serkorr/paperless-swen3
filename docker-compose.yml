@@ -40,5 +40,18 @@ services:
       postgres:
         condition: service_healthy
 
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: paperless-frontend
+    restart: unless-stopped
+
+    ports:
+      - "127.0.0.1:80:80"
+
+    depends_on:
+      - backend
+
 volumes:
   postgres_data:
