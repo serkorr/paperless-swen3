@@ -20,6 +20,10 @@ public class Document {
     @Column(nullable = false)
     private String filename;
 
+    // Unique filename used to store the uploaded PDF on disk
+    @Column(name = "stored_filename")
+    private String storedFilename;
+
     // MIME type of the document (e.g. application/pdf)
     private String contentType;
 
@@ -74,6 +78,17 @@ public class Document {
     // Update the original filename
     public void setFilename(String filename) {
         this.filename = filename;
+    }
+
+
+    // Get the filename used to store the PDF on disk
+    public String getStoredFilename() {
+        return storedFilename;
+    }
+
+    // Set the filename used to store the PDF on disk
+    public void setStoredFilename(String storedFilename) {
+        this.storedFilename = storedFilename;
     }
 
     // Get the MIME type

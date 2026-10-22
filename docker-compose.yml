@@ -1,4 +1,29 @@
 services:
+  rabbitmq:
+    image: rabbitmq:4-management
+    container_name: paperless-rabbitmq
+    restart: unless-stopped
+
+    environment:
+      RABBITMQ_DEFAULT_USER: paperless
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD in .env}
+
+    ports:
+      - "127.0.0.1:5672:5672"
+      - "127.0.0.1:15672:15672"
+
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+
+    # Check whether RabbitMQ is running and responding.
+    healthcheck:
+      test: [ "CMD", "rabbitmq-diagnostics", "-q", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+
   postgres:
     image: postgres:17
     container_name: paperless-postgres
@@ -33,11 +58,24 @@ services:
       SPRING_DATASOURCE_USERNAME: paperless
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
 
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USERNAME: paperless
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD in .env}
+
+      # Directory for uploaded PDF files
+      UPLOAD_DIRECTORY: /app/uploads
+
     ports:
       - "127.0.0.1:8080:8080"
 
+    # Store uploaded PDF files outside the backend container.
+    volumes:
+      - ./uploads:/app/uploads
+
     depends_on:
       postgres:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
 
   frontend:
@@ -53,5 +91,22 @@ services:
     depends_on:
       - backend
 
+  ocr-worker:
+    build:
+      context: ./ocr-worker
+      dockerfile: Dockerfile
+    container_name: paperless-ocr-worker
+    restart: unless-stopped
+
+    environment:
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USERNAME: paperless
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD in .env}
+
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
 volumes:
   postgres_data:
+  rabbitmq_data:

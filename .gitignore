@@ -34,3 +34,6 @@ build/
 
 ### Environment variables ###
 .env
+
+# Ignore uploaded PDF files
+/uploads/

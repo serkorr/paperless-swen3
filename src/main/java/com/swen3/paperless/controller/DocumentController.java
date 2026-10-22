@@ -6,8 +6,11 @@ import com.swen3.paperless.service.DocumentService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.MediaType;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.IOException;
 import java.net.URI;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -29,6 +32,19 @@ public class DocumentController {
             @Valid @RequestBody DocumentRequest request) {
 
         DocumentResponse response = documentService.createDocument(request);
+
+        return ResponseEntity
+                .created(URI.create("/api/documents/" + response.id()))
+                .body(response);
+    }
+
+    // Upload a PDF file and create its document metadata.
+    @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<DocumentResponse> uploadDocument(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam("title") String title) throws IOException {
+
+        DocumentResponse response = documentService.uploadDocument(file, title);
 
         return ResponseEntity
                 .created(URI.create("/api/documents/" + response.id()))
@@ -70,6 +86,25 @@ public class DocumentController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteDocument(@PathVariable Long id) {
         documentService.deleteDocument(id);
+    }
+
+    // Return HTTP 400 for invalid PDF uploads or document titles.
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<String> handleBadRequest(
+            IllegalArgumentException exception) {
+
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(exception.getMessage());
+    }
+
+    // Return HTTP 500 when a PDF cannot be read or saved.
+    @ExceptionHandler(IOException.class)
+    public ResponseEntity<String> handleFileError() {
+
+        return ResponseEntity
+                .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body("PDF file could not be processed");
     }
 
     // Return HTTP 404 when a document or category does not exist
