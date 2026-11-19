@@ -39,6 +39,10 @@ The project is implemented incrementally across six sprints.
 - Docker
 - Docker Compose
 - RabbitMQ
+- MinIO-compatible object storage (SILO)
+- Elasticsearch 9.2.1
+- Tesseract OCR
+- Ghostscript
 
 ## Sprint 1 Features
 
@@ -51,7 +55,7 @@ The project is implemented incrementally across six sprints.
 - Run the backend and PostgreSQL using Docker Compose
 - Automated unit tests with mocked repositories
 
-**Note:** Sprint 1 focuses on document metadata management. PDF file uploads and asynchronous OCR messaging were added in Sprint 3. Actual OCR processing, full-text search, and AI summarization are planned for later sprints.
+**Note:** Sprint 1 focused on document metadata management. PDF uploads and asynchronous OCR messaging were introduced in Sprint 3. Actual OCR processing and full-text search were implemented in Sprint 4. AI summarization is planned for Sprint 5.
 
 ## Sprint 2 Features
 
@@ -69,8 +73,7 @@ The project is implemented incrementally across six sprints.
 - Serve the production frontend using Nginx
 - Run frontend, backend, and PostgreSQL as separate Docker Compose services
 
-**Note:** The React frontend currently manages document metadata. PDF file uploads were implemented in the Spring Boot backend during Sprint 3 and can be performed through the `POST /api/documents/upload` endpoint. A PDF upload form has not yet been added to the frontend.
-
+**Note:** Sprint 2 initially focused on document metadata management. PDF uploads were introduced in Sprint 3 and integrated into the React frontend in Sprint 4.
 ## Sprint 3 Features
 
 Sprint 3 introduces asynchronous messaging with RabbitMQ and real PDF file uploads.
@@ -87,13 +90,13 @@ Sprint 3 introduces asynchronous messaging with RabbitMQ and real PDF file uploa
 - Implemented a separate Spring Boot OCR Worker service.
 - The worker consumes messages from the `paperless.ocr.queue` queue.
 - The worker logs the received document ID.
-- Actual OCR processing is planned for Sprint 4.
+- Actual OCR processing was implemented in Sprint 4 using Tesseract and Ghostscript.
 
 ### PDF Upload
 
 - Added `POST /api/documents/upload` for multipart PDF uploads.
 - PDF files are validated using their content type and file signature.
-- Uploaded PDFs are stored in the `uploads/` directory using unique filenames.
+- Uploaded PDFs are stored in MinIO-compatible object storage (SILO) using unique filenames.
 - Document metadata and the stored filename are saved in PostgreSQL.
 - PDF uploads are limited to 5 MB per file and 6 MB per HTTP request.
 
@@ -109,6 +112,38 @@ Sprint 3 introduces asynchronous messaging with RabbitMQ and real PDF file uploa
 - Successfully tested the PDF upload, RabbitMQ messaging, and OCR Worker integration.
 - All 42 backend automated tests passed.
 - Added automated tests for valid PDF uploads, invalid files, empty files, and transaction rollback.
+
+## Sprint 4 Features
+
+Sprint 4 introduces actual OCR processing, MinIO object storage, and Elasticsearch full-text search.
+
+### OCR Processing
+
+- Integrated Tesseract OCR and Ghostscript into the OCR Worker.
+- The OCR Worker consumes document IDs from the `paperless.ocr.queue` RabbitMQ queue.
+- PDF files are downloaded from MinIO-compatible object storage.
+- Extracted text is sent to the `paperless.indexing.queue` RabbitMQ queue.
+
+### Elasticsearch Indexing
+
+- Added Elasticsearch 9.2.1 as a Docker Compose service.
+- Implemented a separate Indexing Worker using Spring Data Elasticsearch.
+- The Indexing Worker consumes OCR results and indexes extracted text in Elasticsearch.
+- Added the `GET /api/search?query=Hello` endpoint for searching document content.
+
+### React Integration
+
+- Added a PDF upload form to the React frontend.
+- Added document search functionality to the dashboard.
+- Search results display matching document titles and filenames.
+
+### End-to-End Verification
+
+- Successfully built the project using `docker compose build`.
+- Started all eight services using Docker Compose.
+- Uploaded `HelloWorld.pdf` through the React frontend.
+- Searched for `Hello` and found `HelloWorld.pdf` in the results.
+- All 42 backend automated tests passed with the required local environment configuration.
 
 ## Project Setup
 
@@ -128,9 +163,10 @@ Add the following environment variables:
 ```env
 POSTGRES_PASSWORD=replace_with_your_secure_password
 RABBITMQ_PASSWORD=replace_with_your_secure_password
+MINIO_PASSWORD=replace_with_your_secure_password
 ```
 
-Replace both example values with your own secure passwords.
+Replace all three example values with your own secure passwords.
 
 The Docker Compose configuration uses these variables to configure PostgreSQL, RabbitMQ, the backend, and the OCR Worker.
 
@@ -144,13 +180,16 @@ Open a terminal in the project root and run:
 docker compose up -d --build
 ```
 
-This command builds and starts five Docker Compose services:
+This command builds and starts eight Docker Compose services:
 
 - PostgreSQL database
 - RabbitMQ message broker
 - Spring Boot backend
 - React frontend served by Nginx
 - OCR Worker
+- Indexing Worker
+- Elasticsearch
+- MinIO-compatible object storage (SILO)
 
 Verify that the containers are running:
 
@@ -239,7 +278,15 @@ Run all backend tests using the Maven Wrapper.
 ./mvnw clean verify
 ```
 
-The Spring Boot application context test requires PostgreSQL and RabbitMQ to be running. Both `POSTGRES_PASSWORD` and `RABBITMQ_PASSWORD` must be available as environment variables when running Maven tests locally.
+The Spring Boot application context test requires PostgreSQL to be running. When running Maven tests locally, configure the following environment variables:
+
+- `POSTGRES_PASSWORD`
+- `RABBITMQ_PASSWORD`
+- `MINIO_PASSWORD`
+
+These variables can be loaded from the local `.env` file into the terminal environment before running Maven. Docker Compose reads `.env` automatically, but Maven does not.
+
+All 42 backend tests passed with the required environment configuration.
 
 Unit tests for services and controllers use Mockito.
 
@@ -277,11 +324,12 @@ Examples include University, Invoices, and Work.
 
 ## Future Development
 
-Sprint 3 has been completed with RabbitMQ integration, a separate OCR Worker, PDF uploads, error handling, and automated tests.
+Sprints 1–4 have been completed.
+
+Sprint 4 includes OCR processing with Tesseract and Ghostscript, MinIO-compatible object storage, Elasticsearch indexing, and document search through the React frontend.
 
 The remaining development roadmap is:
 
-- **Sprint 4:** OCR processing, MinIO, and Elasticsearch
 - **Sprint 5:** Generative AI and mobile application
 - **Sprint 6:** Integration testing and batch processing
 
@@ -293,3 +341,4 @@ The remaining development roadmap is:
 
 - Sprint 2: `sprint-2-frontend`
 - Sprint 3: `sprint-3-rabbitmq`
+- Sprint 4: `sprint-4-ocr-minio-elasticsearch`
