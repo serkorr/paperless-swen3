@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { getDocuments, type Document } from '../services/documentService'
 import { getCategories, type Category } from '../services/categoryService'
+import { searchDocuments, type SearchResult } from '../services/searchService'
 import DocumentForm from '../components/DocumentForm'
 import CategoryForm from '../components/CategoryForm'
 
@@ -12,6 +13,13 @@ function Dashboard() {
     const [loadingCategories, setLoadingCategories] = useState(true)
     const [documentError, setDocumentError] = useState<string | null>(null)
     const [categoryError, setCategoryError] = useState<string | null>(null)
+
+    const [searchQuery, setSearchQuery] = useState('')
+    const [searchResults, setSearchResults] = useState<SearchResult[]>([])
+    const [searchLoading, setSearchLoading] = useState(false)
+    const [searchError, setSearchError] = useState<string | null>(null)
+
+    const [hasSearched, setHasSearched] = useState(false)
 
     async function loadDocuments() {
         try {
@@ -37,6 +45,31 @@ function Dashboard() {
         }
     }
 
+    async function handleSearch() {
+        const query = searchQuery.trim()
+
+        if (!query) {
+            setSearchResults([])
+            setSearchError(null)
+            setHasSearched(false)
+            return
+        }
+
+        try {
+            setHasSearched(true)
+            setSearchLoading(true)
+            setSearchError(null)
+
+            const results = await searchDocuments(query)
+            setSearchResults(results)
+        } catch {
+            setSearchError('Could not search documents. Please try again.')
+            setSearchResults([])
+        } finally {
+            setSearchLoading(false)
+        }
+    }
+
     useEffect(() => {
         void loadDocuments()
         void loadCategories()
@@ -47,6 +80,51 @@ function Dashboard() {
             <h1>Paperless</h1>
             <h2>Document Dashboard</h2>
             <p>Manage your documents and categories in one place.</p>
+
+            <section>
+                <h3>Search Documents</h3>
+
+                <form onSubmit={(event) => {
+                    event.preventDefault()
+                    void handleSearch()
+                }}>
+                    <input
+                        type="search"
+                        placeholder="Search PDF text..."
+                        aria-label="Search PDF text"
+                        value={searchQuery}
+                        onChange={(event) => setSearchQuery(event.target.value)}
+                    />
+
+                    <button type="submit" disabled={searchLoading}>
+                        {searchLoading ? 'Searching...' : 'Search'}
+                    </button>
+                </form>
+            </section>
+
+
+            {searchError && <p role="alert">{searchError}</p>}
+
+            {hasSearched && !searchLoading && searchResults.length === 0 && !searchError && (
+                <p>No matching documents found.</p>
+            )}
+
+            {searchResults.length > 0 && (
+                <section>
+                    <h3>Search Results</h3>
+                    <ul>
+                        {searchResults.map((result) => (
+                            <li key={result.documentId}>
+                                <Link to={`/documents/${result.documentId}`}>
+                                    {result.filename}
+                                </Link>
+                                {' — '}{result.title}
+                            </li>
+                        ))}
+                    </ul>
+                </section>
+            )}
+
 
             <DocumentForm
                 categories={categories}

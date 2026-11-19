@@ -34,6 +34,7 @@ class DocumentControllerTest {
                 "SWEN3 Notes",
                 "notes.pdf",
                 "application/pdf",
+                "stored-notes.pdf",
                 LocalDateTime.of(2026, 10, 8, 12, 0),
                 DocumentStatus.UPLOADED,
                 null
@@ -129,6 +130,7 @@ class DocumentControllerTest {
                 "Updated Notes",
                 "updated.pdf",
                 "application/pdf",
+                "stored-updated.pdf",
                 LocalDateTime.of(2026, 10, 8, 12, 0),
                 DocumentStatus.UPLOADED,
                 null
@@ -184,6 +186,7 @@ class DocumentControllerTest {
                 "SWEN3 Notes",
                 "notes.pdf",
                 "application/pdf",
+                "stored-notes.pdf",
                 LocalDateTime.of(2026, 10, 8, 12, 0),
                 DocumentStatus.UPLOADED,
                 categoryId

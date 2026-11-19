@@ -16,6 +16,14 @@ FROM eclipse-temurin:25-jre
 
 WORKDIR /app
 
+# Install Tesseract OCR, English language data, and Ghostscript.
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        tesseract-ocr \
+        tesseract-ocr-eng \
+        ghostscript && \
+    rm -rf /var/lib/apt/lists/*
+
 COPY --from=build /app/target/ocr-worker-0.0.1-SNAPSHOT.jar app.jar
 
 ENTRYPOINT ["java", "-jar", "app.jar"]

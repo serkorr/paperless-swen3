@@ -89,6 +89,28 @@ export async function deleteDocument(id: number): Promise<void> {
     })
 
     if (!response.ok) {
-        throw new Error('Failed to delete document')
+        throw new Error('Failed to delete the document')
     }
+}
+
+// Upload a PDF file to MinIO through the backend REST API.
+export async function uploadDocument(
+    file: File,
+    title: string
+): Promise<Document> {
+    const formData = new FormData()
+
+    formData.append('file', file)
+    formData.append('title', title)
+
+    const response = await fetch('/api/documents/upload', {
+        method: 'POST',
+        body: formData,
+    })
+
+    if (!response.ok) {
+        throw new Error('Failed to upload PDF document')
+    }
+
+    return response.json() as Promise<Document>
 }

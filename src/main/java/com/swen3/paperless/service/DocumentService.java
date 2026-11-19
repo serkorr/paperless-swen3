@@ -8,10 +8,10 @@ import com.swen3.paperless.mapper.DocumentMapper;
 import com.swen3.paperless.messaging.OcrMessagePublisher;
 import com.swen3.paperless.repository.CategoryRepository;
 import com.swen3.paperless.repository.DocumentRepository;
+import com.swen3.paperless.storage.MinioStorageService;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -20,8 +20,6 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.UUID;
@@ -36,19 +34,19 @@ public class DocumentService {
     private final DocumentRepository documentRepository;
     private final CategoryRepository categoryRepository;
     private final OcrMessagePublisher ocrMessagePublisher;
-
-    @Value("${paperless.upload.directory}")
-    private String uploadDirectory;
+    private final MinioStorageService minioStorageService;
 
     // Constructor injection makes dependencies explicit and testable.
     public DocumentService(
             DocumentRepository documentRepository,
             CategoryRepository categoryRepository,
-            OcrMessagePublisher ocrMessagePublisher) {
+            OcrMessagePublisher ocrMessagePublisher,
+            MinioStorageService minioStorageService) {
 
         this.documentRepository = documentRepository;
         this.categoryRepository = categoryRepository;
         this.ocrMessagePublisher = ocrMessagePublisher;
+        this.minioStorageService = minioStorageService;
     }
 
     // Create a document and publish an OCR request after the transaction commits.
@@ -86,7 +84,8 @@ public class DocumentService {
         // Generate a unique filename for storing the uploaded PDF.
         String storedFilename = UUID.randomUUID() + ".pdf";
 
-        savePdfFile(file, storedFilename);
+        // Store the uploaded PDF in MinIO.
+        minioStorageService.uploadPdf(file, storedFilename);
 
 
         // Remove the uploaded file if the database transaction fails.
@@ -96,7 +95,7 @@ public class DocumentService {
                     public void afterCompletion(int status) {
                         if (status != TransactionSynchronization.STATUS_COMMITTED) {
                             try {
-                                deletePdfFile(storedFilename);
+                                minioStorageService.deletePdf(storedFilename);
                             } catch (IOException e) {
                                 logger.error(
                                         "Failed to delete PDF after transaction rollback: {}",
@@ -212,47 +211,6 @@ public class DocumentService {
         }
     }
 
-    // Save a PDF file using a generated name to avoid overwriting existing files.
-
-    // Save a PDF file and clean up if the write fails.
-    private void savePdfFile(MultipartFile file, String storedFilename)
-            throws IOException {
-
-        Path uploadPath = Path.of(uploadDirectory)
-                .toAbsolutePath()
-                .normalize();
-
-        Files.createDirectories(uploadPath);
-
-        Path targetPath = uploadPath.resolve(storedFilename);
-
-        try {
-            file.transferTo(targetPath);
-        } catch (IOException | RuntimeException e) {
-            try {
-                deletePdfFile(storedFilename);
-            } catch (IOException cleanupError) {
-                logger.error(
-                        "Failed to clean up incomplete PDF: {}",
-                        storedFilename,
-                        cleanupError
-                );
-            }
-
-            throw e;
-        }
-    }
-
-    // Delete a stored PDF file if it is no longer needed.
-    private void deletePdfFile(String storedFilename) throws IOException {
-        Path uploadPath = Path.of(uploadDirectory)
-                .toAbsolutePath()
-                .normalize();
-
-        Path targetPath = uploadPath.resolve(storedFilename);
-
-        Files.deleteIfExists(targetPath);
-    }
 
     // Centralize document lookup and missing-document handling.
     private Document findDocumentOrThrow(Long id) {

@@ -30,6 +30,7 @@ public final class DocumentMapper {
                 document.getTitle(),
                 document.getFilename(),
                 document.getContentType(),
+                document.getStoredFilename(),
                 document.getUploadedAt(),
                 document.getStatus(),
                 categoryId

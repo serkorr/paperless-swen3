@@ -8,20 +8,17 @@ import com.swen3.paperless.entity.DocumentStatus;
 import com.swen3.paperless.messaging.OcrMessagePublisher;
 import com.swen3.paperless.repository.CategoryRepository;
 import com.swen3.paperless.repository.DocumentRepository;
+import com.swen3.paperless.storage.MinioStorageService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.springframework.mock.web.MockMultipartFile;
-import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Optional;
@@ -41,11 +38,12 @@ class DocumentServiceTest {
     @Mock
     private OcrMessagePublisher ocrMessagePublisher;
 
+    // Mock MinIO storage to avoid connecting to the real server.
+    @Mock
+    private MinioStorageService minioStorageService;
+
     private DocumentService documentService;
 
-    // Use a temporary directory for PDF upload tests.
-    @TempDir
-    Path tempDir;
 
     @BeforeEach
     void setUp() {
@@ -54,11 +52,9 @@ class DocumentServiceTest {
         documentService = new DocumentService(
                 documentRepository,
                 categoryRepository,
-                ocrMessagePublisher
+                ocrMessagePublisher,
+                minioStorageService
         );
-
-        // Configure a temporary upload directory for tests.
-        ReflectionTestUtils.setField(documentService, "uploadDirectory", tempDir.toString());
 
     }
 
@@ -502,9 +498,11 @@ class DocumentServiceTest {
             // Verify that the PDF was saved with a unique filename.
             assertNotNull(savedDocument.getStoredFilename());
             assertTrue(savedDocument.getStoredFilename().endsWith(".pdf"));
-            assertTrue(Files.exists(
-                    tempDir.resolve(savedDocument.getStoredFilename())
-            ));
+            // Verify that the PDF was uploaded to MinIO.
+            verify(minioStorageService).uploadPdf(
+                    eq(file),
+                    eq(savedDocument.getStoredFilename())
+            );
 
 
             // No OCR message should be published before commit.
@@ -547,10 +545,9 @@ class DocumentServiceTest {
             verify(documentRepository).save(documentCaptor.capture());
 
             String storedFilename = documentCaptor.getValue().getStoredFilename();
-            Path storedPath = tempDir.resolve(storedFilename);
 
-            // The PDF exists before the transaction finishes.
-            assertTrue(Files.exists(storedPath));
+            // Verify that the PDF was uploaded to MinIO.
+            verify(minioStorageService).uploadPdf(file, storedFilename);
 
             // Simulate a failed database transaction.
             TransactionSynchronizationManager.getSynchronizations()
@@ -558,8 +555,8 @@ class DocumentServiceTest {
                             TransactionSynchronization.STATUS_ROLLED_BACK
                     ));
 
-            // The PDF must be deleted after rollback.
-            assertFalse(Files.exists(storedPath));
+            // Verify that the PDF is deleted from MinIO after rollback.
+            verify(minioStorageService).deletePdf(storedFilename);
 
             // No OCR message should be sent for a failed transaction.
             verify(ocrMessagePublisher, never()).publish(any());

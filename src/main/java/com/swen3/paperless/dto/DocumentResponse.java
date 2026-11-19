@@ -14,6 +14,9 @@ public record DocumentResponse(
         String filename,
         String contentType,
 
+        // Unique object name used to retrieve the PDF from MinIO
+        String storedFilename,
+
         // Timestamp when the document was uploaded
         LocalDateTime uploadedAt,
 

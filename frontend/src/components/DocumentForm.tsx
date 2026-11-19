@@ -1,5 +1,5 @@
-import { useState, type FormEvent } from 'react'
-import { createDocument } from '../services/documentService'
+import { useRef, useState, type SubmitEvent } from 'react'
+import { uploadDocument } from '../services/documentService'
 import { assignCategory, type Category } from '../services/categoryService'
 
 type DocumentFormProps = {
@@ -9,47 +9,73 @@ type DocumentFormProps = {
 
 function DocumentForm({ categories, onDocumentCreated }: DocumentFormProps) {
     const [title, setTitle] = useState('')
-    const [filename, setFilename] = useState('')
-    const [contentType, setContentType] = useState('application/pdf')
+    const [selectedFile, setSelectedFile] = useState<File | null>(null)
+    const fileInputRef = useRef<HTMLInputElement>(null)
     const [categoryId, setCategoryId] = useState('')
     const [error, setError] = useState<string | null>(null)
+    const [success, setSuccess] = useState<string | null>(null)
     const [saving, setSaving] = useState(false)
 
-    async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    async function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
         event.preventDefault()
         setError(null)
+        setSuccess(null)
 
-        // Validate document metadata before sending it to the backend.
-        if (!title.trim() || !filename.trim() || !contentType.trim()) {
-            setError('All fields are required.')
+        // Validate the document title and selected PDF file.
+        if (!title.trim()) {
+            setError('Please enter a document title.')
+            return
+        }
+
+        if (!selectedFile) {
+            setError('Please select a PDF file.')
+            return
+        }
+
+        // Allow only PDF files.
+        if (
+            selectedFile.type !== 'application/pdf' &&
+            !selectedFile.name.toLowerCase().endsWith('.pdf')
+        ) {
+            setError('Only PDF files are allowed.')
             return
         }
 
         setSaving(true)
 
         try {
-            // Create the document and receive its generated ID.
-            const createdDocument = await createDocument({
-                title: title.trim(),
-                filename: filename.trim(),
-                contentType: contentType.trim(),
-            })
+            // Upload the PDF to the backend, which stores it in MinIO.
+            const createdDocument = await uploadDocument(
+                selectedFile,
+                title.trim()
+            )
 
-            // Assign the selected category to the newly created document.
+            // Assign the selected category to the uploaded document.
             if (categoryId) {
-                await assignCategory(createdDocument.id, Number(categoryId))
+                try {
+                    await assignCategory(createdDocument.id, Number(categoryId))
+                } catch {
+                    setError(
+                        'PDF uploaded successfully, but the category could not be assigned.'
+                    )
+                }
             }
 
+            // Reset the form after a successful upload.
             setTitle('')
-            setFilename('')
-            setContentType('application/pdf')
+            setSelectedFile(null)
+
+            if (fileInputRef.current) {
+                fileInputRef.current.value = ''
+            }
+
             setCategoryId('')
+            setSuccess('PDF uploaded successfully. OCR processing has been requested.')
+
+            // Refresh the document list on the dashboard.
             onDocumentCreated()
         } catch {
-            setError(
-                'Could not complete document creation. If a category was selected, the document may have been saved without it.'
-            )
-            onDocumentCreated()
+            setError('Could not upload the PDF document. Please try again.')
         } finally {
             setSaving(false)
         }
@@ -57,7 +83,7 @@ function DocumentForm({ categories, onDocumentCreated }: DocumentFormProps) {
 
     return (
         <section>
-            <h3>Add New Document</h3>
+            <h3>Upload New Document</h3>
 
             <form onSubmit={(event) => void handleSubmit(event)}>
                 <div>
@@ -71,21 +97,15 @@ function DocumentForm({ categories, onDocumentCreated }: DocumentFormProps) {
                 </div>
 
                 <div>
-                    <label htmlFor="filename">Filename</label>
+                    <label htmlFor="pdfFile">Select PDF File</label>
                     <input
-                        id="filename"
-                        value={filename}
-                        onChange={(event) => setFilename(event.target.value)}
-                        required
-                    />
-                </div>
-
-                <div>
-                    <label htmlFor="contentType">Content Type</label>
-                    <input
-                        id="contentType"
-                        value={contentType}
-                        onChange={(event) => setContentType(event.target.value)}
+                        ref={fileInputRef}
+                        id="pdfFile"
+                        type="file"
+                        accept=".pdf,application/pdf"
+                        onChange={(event) => {
+                            setSelectedFile(event.target.files?.[0] ?? null)
+                        }}
                         required
                     />
                 </div>
@@ -107,9 +127,10 @@ function DocumentForm({ categories, onDocumentCreated }: DocumentFormProps) {
                 </div>
 
                 {error && <p role="alert">{error}</p>}
+                {success && <p role="status">{success}</p>}
 
                 <button type="submit" disabled={saving}>
-                    {saving ? 'Saving...' : 'Create Document'}
+                    {saving ? 'Uploading...' : 'Upload PDF'}
                 </button>
             </form>
         </section>
